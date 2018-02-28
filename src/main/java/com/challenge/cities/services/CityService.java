@@ -2,15 +2,16 @@ package com.challenge.cities.services;
 
 import com.challenge.cities.database.domain.CityDomain;
 import com.challenge.cities.database.repository.CityRepository;
-import com.challenge.cities.util.DTO.ColumnInfo;
+import com.challenge.cities.util.DTO.DistanceInfo;
 import com.challenge.cities.util.DTO.StateInfo;
 import com.challenge.cities.util.ImportationUtil;
 import com.challenge.cities.util.FileConverter;
-import com.challenge.cities.util.StatesUtil;
+import com.challenge.cities.util.ServiceUtil;
 import com.google.gson.Gson;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +19,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -30,6 +34,9 @@ public class CityService {
     @Autowired
     private CityRepository cityRepository;
 
+    @Autowired
+    private MongoTemplate mongoTemplate;
+
     @RequestMapping(method = {RequestMethod.GET})
     public void findAll(){
         System.out.println("CITIES");
@@ -40,10 +47,7 @@ public class CityService {
         try {
             List<String[]> fileCSV = FileConverter.convertCSVToList();
             List<CityDomain> cities = ImportationUtil.getDomainByCSV(fileCSV);
-            if(cities != null) {
-                cities.stream().forEach(cityDomain -> cityRepository.save(cityDomain));
-            }
-
+            cityRepository.save(cities);
             return new ResponseEntity(HttpStatus.CREATED);
 
         }catch (FileNotFoundException fileException){
@@ -83,7 +87,7 @@ public class CityService {
     public ResponseEntity biggerState(){
         try{
             List<CityDomain> cityDomainList = cityRepository.findByCapitalOrderByName(true);
-            List<StateInfo> states = StatesUtil.getCountOfCitiesByState(cityDomainList, cityRepository);
+            List<StateInfo> states = ServiceUtil.getCountOfCitiesByState(cityDomainList, cityRepository);
             if(states != null && states.size() >0){
                 StateInfo stateMaxCity = states.stream().max((s1, s2) -> Integer.compare(s1.getCities(), s2.getCities())).get();
                 return new ResponseEntity(new Gson().toJson(stateMaxCity), HttpStatus.OK);
@@ -99,7 +103,7 @@ public class CityService {
     public ResponseEntity smallerState(){
         try{
             List<CityDomain> cityDomainList = cityRepository.findByCapitalOrderByName(true);
-            List<StateInfo> states = StatesUtil.getCountOfCitiesByState(cityDomainList, cityRepository);
+            List<StateInfo> states = ServiceUtil.getCountOfCitiesByState(cityDomainList, cityRepository);
             if(states != null && states.size() >0){
                 StateInfo stateMinCity = states.stream().min((s1, s2) -> Integer.compare(s1.getCities(), s2.getCities())).get();
                 return new ResponseEntity(new Gson().toJson(stateMinCity), HttpStatus.OK);
@@ -115,7 +119,7 @@ public class CityService {
     public ResponseEntity countByUf(){
         try{
             List<CityDomain> cityDomainList = cityRepository.findByCapitalOrderByName(true);
-            List<StateInfo> states = StatesUtil.getCountOfCitiesByState(cityDomainList, cityRepository);
+            List<StateInfo> states = ServiceUtil.getCountOfCitiesByState(cityDomainList, cityRepository);
             return new ResponseEntity(new Gson().toJson(states), HttpStatus.OK);
         }catch (Exception e){
             LOGGER.error( "Erro ao buscar o estados - " + e.getMessage() );
@@ -168,10 +172,10 @@ public class CityService {
         }
     }
 
-    @RequestMapping(value="/", method = {RequestMethod.DELETE}, produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity delete(@RequestBody CityDomain cityDomain){
+    @RequestMapping(value="/{ibgeId}", method = {RequestMethod.DELETE}, produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity delete(@PathVariable(value = "ibgeId") String ibgeId){
         try{
-            cityRepository.delete(cityDomain);
+            cityRepository.delete(cityRepository.findByIbgeId(ibgeId));
             return new ResponseEntity(HttpStatus.OK);
         }catch (Exception e){
             LOGGER.error( "Erro ao buscar o estados - " + e.getMessage() );
@@ -193,9 +197,8 @@ public class CityService {
     @RequestMapping(value="/count/column/{column}", method = {RequestMethod.GET}, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity countColumn(@PathVariable(value = "column") String column){
         try{
-            Integer countByColumn = cityRepository.countDistinctByColumn(column);
-            ColumnInfo columnInfo = new ColumnInfo(column, countByColumn);
-            return new ResponseEntity(new Gson().toJson(columnInfo), HttpStatus.OK);
+            List<CityDomain> allRecords =  mongoTemplate.getCollection("cities").distinct(column);
+            return new ResponseEntity(new Gson().toJson(allRecords.size()), HttpStatus.OK);
         }catch (Exception e){
             LOGGER.error( "Erro ao buscar o estados - " + e.getMessage() );
             return new ResponseEntity(HttpStatus.BAD_REQUEST);
@@ -205,8 +208,35 @@ public class CityService {
     @RequestMapping(value="/count/all", method = {RequestMethod.GET}, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity countAll(){
         try{
-            Integer countByColumn = cityRepository.countAll();
+            Integer countByColumn = cityRepository.findAll().size();
             return new ResponseEntity(new Gson().toJson(countByColumn), HttpStatus.OK);
+        }catch (Exception e){
+            LOGGER.error( "Erro ao buscar o estados - " + e.getMessage() );
+            return new ResponseEntity(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @RequestMapping(value="/distance/max", method = {RequestMethod.GET}, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity distanceMax(){
+        try{
+            List<CityDomain> cityDomainList = cityRepository.findAll();
+            Double maxDistance = 0.0;
+            Map<String, String> citiesWithMoreDistance = new HashMap<>();
+            CityDomain firstCityToCompare = null;
+            for(CityDomain city : cityDomainList){
+                if(firstCityToCompare == null){
+                    firstCityToCompare = city;
+                }else{
+                    Double distance = ServiceUtil.distanceBetwenTwoCities(firstCityToCompare, city);
+                    if(distance > maxDistance){
+                        maxDistance = distance;
+                        citiesWithMoreDistance.put("CIDADE_1", firstCityToCompare.getName());
+                        citiesWithMoreDistance.put("CIDADE_2", city.getName());
+                    }
+                }
+            }
+            DistanceInfo distanceInfo = new DistanceInfo(citiesWithMoreDistance.get("CIDADE_1"), citiesWithMoreDistance.get("CIDADE_2"), maxDistance);
+            return new ResponseEntity(new Gson().toJson(distanceInfo), HttpStatus.OK);
         }catch (Exception e){
             LOGGER.error( "Erro ao buscar o estados - " + e.getMessage() );
             return new ResponseEntity(HttpStatus.BAD_REQUEST);

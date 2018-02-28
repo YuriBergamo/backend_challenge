@@ -17,9 +17,4 @@ public interface CityRepository extends MongoRepository<CityDomain, String > {
     @Query(value="{ '?0': {$regex : ?1, $options: 'i'} }")
     List<CityDomain> findColumnByFilter(String column, String filter);
 
-    @Query(value="{ '?0': {$exists:true} }")
-    Integer countDistinctByColumn(String column);
-
-    Integer countAll();
-
 }

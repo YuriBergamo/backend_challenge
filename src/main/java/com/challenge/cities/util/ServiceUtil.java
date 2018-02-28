@@ -5,9 +5,13 @@ import com.challenge.cities.database.repository.CityRepository;
 import com.challenge.cities.util.DTO.StateInfo;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
-public class StatesUtil {
+public class ServiceUtil {
 
     public static List<StateInfo> getCountOfCitiesByState(List<CityDomain> capitalList, CityRepository cityRepository){
         List<StateInfo> states = new ArrayList<>();
@@ -19,7 +23,7 @@ public class StatesUtil {
         return states;
     }
 
-    private static Double distanceBetwenTwoCities(CityDomain cityDomain1, CityDomain cityDomain2) {
+    public static Double distanceBetwenTwoCities(CityDomain cityDomain1, CityDomain cityDomain2) {
 
         final int R = 6371; // Radius of the earth
 
@@ -37,6 +41,11 @@ public class StatesUtil {
 
     private static Double deg2rad(double deg) {
         return (deg * Math.PI / 180.0);
+    }
+
+    public static <T> Predicate<T> distinctByKey(Function<? super T, ?> keyExtractor) {
+        final Set<Object> seen = new HashSet<>();
+        return t -> seen.add(keyExtractor.apply(t));
     }
 }
 

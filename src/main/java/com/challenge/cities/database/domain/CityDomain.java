@@ -4,6 +4,8 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import java.util.Arrays;
+import java.util.List;
 
 @XmlRootElement
 @Document(collection = "cities")
@@ -119,4 +121,5 @@ public class CityDomain {
     public int hashCode() {
         return ibgeId.hashCode();
     }
+
 }
