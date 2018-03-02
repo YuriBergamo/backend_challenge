@@ -9,8 +9,7 @@ import java.util.List;
 
 public class FileConverter {
 
-    public static List<String[]> convertCSVToList() throws FileNotFoundException, IOException {
-        String filePath = "/home/yuribergamo/Documentos/Yuri/challenge/cidades.csv";
+    public static List<String[]> convertCSVToList(String filePath) throws FileNotFoundException, IOException {
         List<String[]> retorno = new ArrayList<>();
         BufferedReader br = null;
         String line = "";

@@ -3,6 +3,7 @@ package com.challenge.cities.services;
 import com.challenge.cities.database.domain.CityDomain;
 import com.challenge.cities.database.repository.CityRepository;
 import com.challenge.cities.util.DTO.DistanceInfo;
+import com.challenge.cities.util.DTO.ImportDTO;
 import com.challenge.cities.util.DTO.StateInfo;
 import com.challenge.cities.util.ImportationUtil;
 import com.challenge.cities.util.FileConverter;
@@ -19,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,10 +42,10 @@ public class CityService {
         System.out.println("CITIES");
     }
 
-    @RequestMapping(value="/import", method = {RequestMethod.GET})
-    public ResponseEntity importCSV(){
+    @RequestMapping(value="/import", method = {RequestMethod.POST}, produces = MediaType.APPLICATION_JSON_VALUE, consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity importCSV(@RequestBody ImportDTO dto){
         try {
-            List<String[]> fileCSV = FileConverter.convertCSVToList();
+            List<String[]> fileCSV = FileConverter.convertCSVToList(dto.getPath());
             List<CityDomain> cities = ImportationUtil.getDomainByCSV(fileCSV);
             cityRepository.save(cities);
             return new ResponseEntity(HttpStatus.CREATED);
